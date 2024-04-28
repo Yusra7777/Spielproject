@@ -1,0 +1,153 @@
+import random
+import pygame
+import sys
+import os
+
+pygame.init()
+
+BREITE, HÖHE = 1000, 800
+WEISS = (255, 255, 255)
+SCHWARZ = (0, 0, 0)
+BRAUN = (139, 69, 19)
+GRÜN = (0, 255, 0)
+ROT = (255, 0, 0)
+
+bildschirm = pygame.display.set_mode((BREITE, HÖHE))
+pygame.display.set_caption("Erztransporter")
+
+def bild_laden(name):
+    basispfad = os.path.dirname(os.path.abspath(__file__))
+    bildpfad = os.path.join(basispfad, "bilder", f"{name}.png")
+
+    if not os.path.exists(bildpfad):
+        raise FileNotFoundError(f"Das Bild {bildpfad} konnte nicht gefunden werden.")
+
+    try:
+        bild = pygame.image.load(bildpfad).convert_alpha()
+        return bild
+    except pygame.error as e:
+        raise IOError(f"Fehler beim Laden des Bildes {name}.png: {e}")
+
+spieler_bild = bild_laden('LKW')
+tankstelle_bild = bild_laden('station')
+erz_bild = bild_laden('erz')
+Hubschrauber_bild = bild_laden('helicopter')
+Helikopterbasis_bild = bild_laden('Basis')
+Lager_bild = bild_laden('lager')
+
+SPIELER_GROESSE = 50
+OBJEKT_GROESSE = 30
+
+schrift = pygame.font.SysFont(None, 24)
+
+spieler_x = 400
+spieler_y = 300
+spieler_geschwindigkeit = 1
+spieler_energie = 100
+gesammelte_objekte = 0
+abgelegte_objekte = []
+
+energiegeber_x, energiegeber_y = 700, 500
+sammel_objekt_x, sammel_objekt_y = 600, 400
+ablageplatz_x, ablageplatz_y = 100, 100
+
+läuft = True
+
+while läuft:
+    for ereignis in pygame.event.get():
+        if ereignis.type == pygame.QUIT:
+            läuft = False
+
+    tasten = pygame.key.get_pressed()
+
+    if tasten[pygame.K_LEFT] and spieler_energie > 0 and len(abgelegte_objekte) != 5:
+        spieler_x -= spieler_geschwindigkeit
+        spieler_energie -= 0.010
+    if tasten[pygame.K_RIGHT] and spieler_energie > 0 and len(abgelegte_objekte) != 5:
+        spieler_x += spieler_geschwindigkeit
+        spieler_energie -= 0.010
+    if tasten[pygame.K_UP] and spieler_energie > 0 and len(abgelegte_objekte) != 5:
+        spieler_y -= spieler_geschwindigkeit
+        spieler_energie -= 0.010
+    if tasten[pygame.K_DOWN] and spieler_energie > 0 and len(abgelegte_objekte) != 5:
+        spieler_y += spieler_geschwindigkeit
+        spieler_energie -= 0.010
+
+    spieler_x = max(0, min(spieler_x, BREITE - SPIELER_GROESSE))
+    spieler_y = max(0, min(spieler_y, HÖHE - SPIELER_GROESSE))
+
+    spieler_rechteck = pygame.Rect(spieler_x, spieler_y, SPIELER_GROESSE, SPIELER_GROESSE)
+    energiegeber_rechteck = pygame.Rect(energiegeber_x, energiegeber_y, OBJEKT_GROESSE, OBJEKT_GROESSE)
+    sammel_objekt_rechteck = pygame.Rect(sammel_objekt_x, sammel_objekt_y, OBJEKT_GROESSE, OBJEKT_GROESSE)
+    ablageplatz_rechteck = pygame.Rect(ablageplatz_x, ablageplatz_y, OBJEKT_GROESSE, OBJEKT_GROESSE)
+
+    if spieler_rechteck.colliderect(energiegeber_rechteck):
+        spieler_energie = 100
+        energiegeber_x = BREITE - 50
+        energiegeber_y = HÖHE - 50
+
+    if spieler_rechteck.colliderect(sammel_objekt_rechteck) and gesammelte_objekte < 5:
+        gesammelte_objekte += 1
+        sammel_objekt_x = -100
+
+    if spieler_rechteck.colliderect(ablageplatz_rechteck) and gesammelte_objekte > 0:
+        abgelegte_objekte.append((ablageplatz_x, ablageplatz_y))
+        gesammelte_objekte -= 1
+        sammel_objekt_x = random.randint(0, BREITE - OBJEKT_GROESSE)
+        sammel_objekt_y = random.randint(0, HÖHE - OBJEKT_GROESSE)
+
+    spieler_energie = max(0, min(spieler_energie, 100))
+
+    bildschirm.fill(WEISS)
+
+    # Objekte und Ablageplatz zeichnen
+    bildschirm.blit(tankstelle_bild, (energiegeber_x, energiegeber_y))
+    bildschirm.blit(erz_bild, (sammel_objekt_x, sammel_objekt_y))
+    pygame.draw.rect(bildschirm, BRAUN, (ablageplatz_x, ablageplatz_y, OBJEKT_GROESSE, OBJEKT_GROESSE))
+
+    # Abgelegte Objekte des Spielers zeichnen
+    for objekt_pos in abgelegte_objekte:
+        pygame.draw.rect(bildschirm, SCHWARZ, (*objekt_pos, OBJEKT_GROESSE, OBJEKT_GROESSE))
+
+    # Spieler zeichnen
+    bildschirm.blit(spieler_bild, (spieler_x, spieler_y))
+
+    # Balken für die Spielerenergie zeichnen
+    energie_balken_breite = 50
+    energie_balken = pygame.Rect(spieler_x, spieler_y - 10, energie_balken_breite, 5)
+    pygame.draw.rect(bildschirm, GRÜN, energie_balken)
+
+    # Textinformationen zum Spielstatus anzeigen
+    energie_text = schrift.render(f'Energie: {spieler_energie:.2f}', True, SCHWARZ)
+    bildschirm.blit(energie_text, (10, 10))
+
+    objekte_text = schrift.render(f'Gesammelte Objekte: {gesammelte_objekte}', True, SCHWARZ)
+    bildschirm.blit(objekte_text, (10, 30))
+
+    abgelegte_objekte_text = schrift.render(f'Abgelegte Objekte: {len(abgelegte_objekte)}/5', True, SCHWARZ)
+    bildschirm.blit(abgelegte_objekte_text, (10, 50))
+
+    if spieler_energie <= 0:
+        nachricht_text = schrift.render("Deine Energie ist leer, drücke E um sie wieder aufzuladen", True, SCHWARZ)
+        bildschirm.blit(nachricht_text, (200, 300))
+
+    if spieler_energie <= 0 and tasten[pygame.K_e]:
+        spieler_energie = 100
+        spieler_x = 400
+        spieler_y = 300
+
+    if len(abgelegte_objekte) == 5:
+        nachricht_text = schrift.render("Glückwunsch, du hast alle Objekte abgelegt! R für restart", True, SCHWARZ)
+        bildschirm.blit(nachricht_text, (200, 300))
+
+    if len(abgelegte_objekte) == 5 and tasten[pygame.K_r]:
+        spieler_x = 400
+        spieler_y = 300
+        spieler_energie = 100
+        gesammelte_objekte = 0
+        abgelegte_objekte = []
+
+    pygame.display.flip()
+
+pygame.quit()
+sys.exit()
